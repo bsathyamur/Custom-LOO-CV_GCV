@@ -1,0 +1,101 @@
+### CS598 - PSL - CODING ASSIGNMENT 3
+### Net ID: balajis2
+### Date: 10/05/2020
+
+#### STEP 1: FUNCTION TO COMPUTE THE LOO-CV AND GCV FOR THE DIFFERENT SPANS
+
+```{r}
+
+lo.lev <- function(x1, sp){
+  # x1: feature vector of length n
+  # sp: a value for "span"
+  
+  n = length(x1);
+  lev = rep(0, n)
+  
+  diag_vector = diag(n)
+  
+  for(j in 1:n){
+    y = diag_vector[,j]
+    fitted_loess_mdl = loess(y~x1, span = sp,
+                             control = loess.control(surface = "direct"))
+    y_hat = fitted_loess_mdl$fitted
+    lev[j] = y_hat[j]
+  }
+  
+  return(lev)
+}
+
+onestep_CV <- function(x1, y1, sp){
+  
+  df_data = data.frame(x=x1,y=y1)
+  n = length(x1)
+  fitted_loess_mdl = loess(y ~ x, data=df_data,span = sp,
+                     control = loess.control(surface = "direct"))
+  residual_vector = fitted_loess_mdl$residuals
+  
+  s_diagonal = lo.lev(x1,sp)
+  cv = sum((residual_vector/(1 - s_diagonal))^2)/n
+  gcv = sum(residual_vector^2) /(n * (1 - (sum(s_diagonal)/n))^2)
+  
+  return(list(cv = cv, gcv = gcv))
+}
+
+myCV <- function(x1, y1, span){
+  # x1: feature vector of length n
+  # y1: response vector of length n
+  # span: a sequence of values for "span"
+  
+  m = length(span)
+  cv = rep(0, m)
+  gcv = rep(0, m)
+  
+  for(i in 1:m){
+    tmp = onestep_CV(x1, y1, span[i])
+    cv[i] = tmp$cv
+    gcv[i] = tmp$gcv
+  }
+  
+  return(list(cv = cv, gcv = gcv))
+  
+}
+```
+
+#### STEP 2: TEST THE FUNCTION AND PRINT THE RESULTS
+
+```{r}
+mydata = read.csv(file = "Coding3_Data.csv")
+dim(mydata)
+plot(mydata$x, mydata$y, xlab="", ylab="",col="red")
+span1 = seq(from = 0.2, by = 0.05, length = 15 )
+cv.out = myCV(mydata$x, mydata$y, span1)
+myout = data.frame(CV = cv.out$cv, 
+                   GCV = cv.out$gcv, 
+                   span = span1)
+myout
+```
+
+#### STEP 3: GET THE SPAN FOR MINIMAL LOOCV AND GCV
+
+```{r}
+minGCV = myout$span[myout$GCV == min(myout$GCV)]
+minLOOCV = myout$span[myout$CV == min(myout$CV)]
+```
+
+The minimal LOOCV is `r minGCV ` and minimal GCV is `r minLOOCV `. Both achieve their minimal at 0.5
+
+
+#### Plot the fitted curve
+
+```{r}
+spangcv.min = min(minGCV,minLOOCV)
+plot(mydata$x, mydata$y, xlab="", ylab="", col="red");
+fx = 1:50/50;
+fy = sin(12*(fx+0.2))/(fx+0.2)
+lines(fx, fy, col=8, lwd=2)
+
+f = loess(y ~ x, mydata, span = spangcv.min)
+lines(fx, predict(f, data.frame(x = fx), surface = "direct"), 
+      lty=2, lwd=2, col="blue")
+```
+
